@@ -58,11 +58,10 @@ impl ManageConnection for FreetdsConnectionManager {
 #[cfg(test)]
 mod tests {
     use std::{time::Duration, thread, rc::Rc};
-
     use crate::FreetdsConnectionManager;
 
     #[test]
-    fn test_select() {
+    fn test_freetds_connection_manager() {
         let manager = FreetdsConnectionManager::new(
             "192.168.130.221:2025",
             "sa",
@@ -92,4 +91,5 @@ mod tests {
             handle.join().unwrap();
         }
     }
+
 }
