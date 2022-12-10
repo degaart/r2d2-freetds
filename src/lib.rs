@@ -1,5 +1,13 @@
 pub use freetds;
-use freetds::Connection;
+pub use freetds::{
+    Connection,
+    ResultSet,
+    ColumnId,
+    Error,
+    error::Type,
+    null::Null,
+    to_sql::ToSql
+};
 pub use r2d2;
 use r2d2::ManageConnection;
 
