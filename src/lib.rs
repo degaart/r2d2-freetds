@@ -6,17 +6,19 @@ pub use freetds::{
     Error,
     error::Type,
     null::Null,
-    to_sql::ToSql
+    to_sql::ToSql,
+    Statement,
+    ParamValue
 };
 pub use r2d2;
 use r2d2::ManageConnection;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FreetdsConnectionManager {
-    host: String,
-    username: String,
-    password: String,
-    database: String
+    pub host: String,
+    pub username: String,
+    pub password: String,
+    pub database: String
 }
 
 impl FreetdsConnectionManager {
@@ -53,7 +55,10 @@ impl ManageConnection for FreetdsConnectionManager {
     }
 
     fn is_valid(&self, conn: &mut Self::Connection) -> Result<(), Self::Error> {
-        let _ = conn.execute("select 1", &[])?;
+        let db_name = conn.db_name()?;
+        if db_name != self.database {
+            conn.execute(&format!("use {}", self.database), &[])?;
+        }
         Ok(())
     }
 
@@ -65,13 +70,15 @@ impl ManageConnection for FreetdsConnectionManager {
 
 #[cfg(test)]
 mod tests {
-    use std::{time::Duration, thread, rc::Rc};
+    use std::{time::Duration, thread};
     use crate::FreetdsConnectionManager;
+
+    const SERVER: &str = "192.168.130.221:2025";
 
     #[test]
     fn test_freetds_connection_manager() {
         let manager = FreetdsConnectionManager::new(
-            "192.168.130.221:2025",
+            SERVER,
             "sa",
             "",
             "master");
@@ -98,6 +105,33 @@ mod tests {
         while let Some(handle) = handles.pop() {
             handle.join().unwrap();
         }
+    }
+
+    #[test]
+    fn test_is_valid() {
+        /* The connection should restore current database */
+        let manager = FreetdsConnectionManager::new(
+            SERVER,
+            "sa",
+            "",
+            "master");
+        let pool = r2d2::Pool::builder()
+            .max_size(1)
+            .max_lifetime(Some(Duration::from_secs(5)))
+            .build(manager)
+            .unwrap();
+        
+        let mut conn = pool.get().unwrap();
+        conn.execute("use sybsystemprocs", &[]).unwrap();
+        let mut rs = conn.execute("select db_name()", &[]).unwrap();
+        assert!(rs.next());
+        assert_eq!(Some(String::from("sybsystemprocs")), rs.get_string(0).unwrap());
+        drop(conn);
+
+        let mut conn = pool.get().unwrap();
+        let mut rs = conn.execute("select db_name()", &[]).unwrap();
+        assert!(rs.next());
+        assert_eq!(Some(String::from("master")), rs.get_string(0).unwrap());
     }
 
 }
