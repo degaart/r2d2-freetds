@@ -1,4 +1,5 @@
 pub use freetds;
+use freetds::connection::ConnectionBuilder;
 pub use freetds::{
     Connection,
     ResultSet,
@@ -13,27 +14,14 @@ pub use freetds::{
 pub use r2d2;
 use r2d2::ManageConnection;
 
-#[derive(Debug, Clone)]
+#[derive(Debug,Clone)]
 pub struct FreetdsConnectionManager {
-    pub host: String,
-    pub username: String,
-    pub password: String,
-    pub database: String
+    builder: ConnectionBuilder,
 }
 
 impl FreetdsConnectionManager {
-    pub fn new(
-        host: impl AsRef<str>,
-        username: impl AsRef<str>,
-        password: impl AsRef<str>,
-        database: impl AsRef<str>
-    ) -> Self {
-        Self {
-            host: host.as_ref().to_string(),
-            username: username.as_ref().to_string(),
-            password: password.as_ref().to_string(),
-            database: database.as_ref().to_string()
-        }
+    pub fn new(builder: ConnectionBuilder) -> Self {
+        Self { builder }
     }
 }
 
@@ -42,22 +30,15 @@ impl ManageConnection for FreetdsConnectionManager {
     type Error = freetds::Error;
 
     fn connect(&self) -> Result<Self::Connection, Self::Error> {
-        let mut conn = Connection::new();
-        conn.set_client_charset("UTF-8").unwrap();
-        conn.set_username(&self.username).unwrap();
-        conn.set_password(&self.password).unwrap();
-        conn.set_database(&self.database).unwrap();
-        conn.set_tds_version_50().unwrap();
-        conn.set_login_timeout(5).unwrap();
-        conn.set_timeout(5).unwrap();
-        conn.connect(&self.host)?;
-        Ok(conn)
+        Ok(self.builder.connect()?)
     }
 
     fn is_valid(&self, conn: &mut Self::Connection) -> Result<(), Self::Error> {
         let db_name = conn.db_name()?;
-        if db_name != self.database {
-            conn.execute(&format!("use {}", self.database), &[])?;
+
+        let want_database = self.builder.get_database().unwrap_or("master".to_string());
+        if db_name != want_database {
+            conn.execute(&format!("use {}", want_database), &[])?;
         }
         Ok(())
     }
@@ -77,11 +58,11 @@ mod tests {
 
     #[test]
     fn test_freetds_connection_manager() {
-        let manager = FreetdsConnectionManager::new(
-            SERVER,
-            "sa",
-            "",
-            "master");
+        let builder = freetds::Connection::builder()
+            .server_name(SERVER)
+            .username("sa")
+            .password("");
+        let manager = FreetdsConnectionManager::new(builder);
         let pool = r2d2::Pool::builder()
             .max_size(1)
             .max_lifetime(Some(Duration::from_secs(5)))
@@ -110,11 +91,11 @@ mod tests {
     #[test]
     fn test_is_valid() {
         /* The connection should restore current database */
-        let manager = FreetdsConnectionManager::new(
-            SERVER,
-            "sa",
-            "",
-            "master");
+        let builder = freetds::Connection::builder()
+            .server_name(SERVER)
+            .username("sa")
+            .password("");
+        let manager = FreetdsConnectionManager::new(builder);
         let pool = r2d2::Pool::builder()
             .max_size(1)
             .max_lifetime(Some(Duration::from_secs(5)))
@@ -135,3 +116,4 @@ mod tests {
     }
 
 }
+
