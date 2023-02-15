@@ -6,10 +6,9 @@ pub use freetds::{
     ColumnId,
     Error,
     error::Type,
-    null::Null,
     to_sql::ToSql,
     Statement,
-    ParamValue
+    Value
 };
 pub use r2d2;
 use r2d2::ManageConnection;
