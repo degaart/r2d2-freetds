@@ -8,7 +8,10 @@ pub use freetds::{
     error::Type,
     to_sql::ToSql,
     Statement,
-    Value
+    Value,
+    NaiveDate,
+    NaiveTime,
+    NaiveDateTime,
 };
 pub use r2d2;
 use r2d2::ManageConnection;
